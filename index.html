@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MUSIC ALBUM OF MR TRIET</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <style>
+        body { background-color: #f8f9fa; }
+        .navbar { background-color: #343a40; }
+        .card { margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .card-img-top { height: 200px; object-fit: cover; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">ALBUM OF MR TRIET</a>
+            <button class="btn btn-outline-light" data-bs-toggle="modal" data-bs-target="#uploadModal">
+                <i class="fas fa-upload"></i> Upload Video
+            </button>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row" id="videoList"></div>
+    </div>
+
+    <div class="modal fade" id="uploadModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Upload Video</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="uploadForm">
+                        <div class="mb-3">
+                            <label for="videoUrl" class="form-label">YouTube Video URL</label>
+                            <input type="text" class="form-control" id="videoUrl" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="videoTitle" class="form-label">Video Title</label>
+                            <input type="text" class="form-control" id="videoTitle" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Upload</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="playerModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="playerModalTitle"></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="player"></div>
+                </div>
+                <div class="modal-footer">
+                    <button id="playPauseBtn" class="btn btn-primary">Pause</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyA1RI7dON8yARmssHcV9rrPITdTEFpQLFc",
+        authDomain: "idecoserver.firebaseapp.com",
+        databaseURL: "https://idecoserver-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "idecoserver",
+        storageBucket: "idecoserver.appspot.com",
+        messagingSenderId: "1037959796693",
+        appId: "1:1037959796693:web:6f0192caf160e61f4e4f5c",
+        measurementId: "G-0H23RY45JT"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+    // Kiểm tra kết nối Firebase
+    database.ref().once('value')
+        .then(() => console.log("Firebase connection successful"))
+        .catch(error => console.error("Firebase connection error:", error));
+
+    let player;
+
+    function onYouTubeIframeAPIReady() {
+        player = new YT.Player('player', {
+            height: '390',
+            width: '100%',
+            videoId: '',
+            events: {
+                'onReady': onPlayerReady,
+                'onStateChange': onPlayerStateChange
+            }
+        });
+    }
+
+    function onPlayerReady(event) {
+        // Player is ready
+    }
+
+    function onPlayerStateChange(event) {
+        updatePlayPauseButton();
+    }
+
+    document.getElementById('uploadForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        console.log("Form submitted");
+        const videoUrl = document.getElementById('videoUrl').value;
+        const videoTitle = document.getElementById('videoTitle').value;
+        console.log("Video URL:", videoUrl);
+        console.log("Video Title:", videoTitle);
+        const videoId = extractVideoId(videoUrl);
+        if (videoId) {
+            console.log("Extracted Video ID:", videoId);
+            addVideo(videoId, videoTitle);
+        } else {
+            console.error("Invalid YouTube URL");
+            alert('Invalid YouTube URL');
+        }
+    });
+
+    function extractVideoId(url) {
+        const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+        const match = url.match(regExp);
+        return (match && match[2].length === 11) ? match[2] : null;
+    }
+
+    function addVideo(videoId, title) {
+        const videoInfo = {
+            id: videoId,
+            title: title,
+            thumbnail: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`
+        };
+        database.ref('videos').push(videoInfo)
+            .then(() => {
+                console.log("Video added successfully");
+                alert("Video added successfully");
+                document.getElementById('videoUrl').value = '';
+                document.getElementById('videoTitle').value = '';
+                bootstrap.Modal.getInstance(document.getElementById('uploadModal')).hide();
+            })
+            .catch((error) => {
+                console.error("Error adding video: ", error);
+                alert("Error adding video: " + error.message);
+            });
+    }
+
+    function renderVideoList() {
+        const videoListElement = document.getElementById('videoList');
+        videoListElement.innerHTML = '';
+        database.ref('videos').on('value', (snapshot) => {
+            videoListElement.innerHTML = '';
+            snapshot.forEach((childSnapshot) => {
+                const video = childSnapshot.val();
+                const videoCard = createVideoCard(video, childSnapshot.key);
+                videoListElement.appendChild(videoCard);
+            });
+        });
+    }
+
+    function createVideoCard(video, key) {
+        const col = document.createElement('div');
+        col.className = 'col-md-4';
+        col.innerHTML = `
+            <div class="card">
+                <img src="${video.thumbnail}" class="card-img-top" alt="${video.title}">
+                <div class="card-body">
+                    <h5 class="card-title">${video.title}</h5>
+                    <button class="btn btn-primary btn-sm" onclick="playVideo('${video.id}', '${video.title}')">
+                        <i class="fas fa-play"></i> Play
+                    </button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteVideo('${key}')">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
+                </div>
+            </div>
+        `;
+        return col;
+    }
+
+    function playVideo(videoId, title) {
+        player.loadVideoById(videoId);
+        document.getElementById('playerModalTitle').textContent = title;
+        new bootstrap.Modal(document.getElementById('playerModal')).show();
+        updatePlayPauseButton();
+    }
+
+    function deleteVideo(key) {
+        database.ref('videos').child(key).remove()
+            .then(() => console.log("Video deleted successfully"))
+            .catch((error) => console.error("Error deleting video: ", error));
+    }
+
+    document.getElementById('playPauseBtn').addEventListener('click', function() {
+        if (player.getPlayerState() === YT.PlayerState.PLAYING) {
+            player.pauseVideo();
+        } else {
+            player.playVideo();
+        }
+    });
+
+    function updatePlayPauseButton() {
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        if (player.getPlayerState() === YT.PlayerState.PLAYING) {
+            playPauseBtn.textContent = 'Pause';
+        } else {
+            playPauseBtn.textContent = 'Play';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', renderVideoList);
+    </script>
+</body>
+</html>
